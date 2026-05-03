@@ -13,57 +13,53 @@ export async function POST(req: Request) {
     });
 
     let prompt = `
-      Atue como um roteirista de TikTok especializado em culinária para Airfryer.
-      Crie uma receita barata e simples.
+      Atue como um chef criativo e roteirista de TikTok para pratos de Airfryer.
+      Você receberá uma lista de ingredientes ou uma foto. 
+      Crie DUAS opções de receitas diferentes.
+      Regra 1: Você pode e deve incluir ingredientes básicos de despensa (sal, pimenta, azeite, alho, cebola, farinha) para que a receita faça sentido e fique gostosa.
+      Regra 2: Retorne APENAS um objeto JSON com o array 'receitas' contendo exatamente 2 opções.
     `;
 
-    if (ingredient) {
-      prompt += `\nPriorize o uso destes ingredientes: ${ingredient}.`;
-    }
-
-    if (image) {
-      prompt += `\nAnalise a imagem enviada, identifique os ingredientes disponíveis nela e crie a receita com base no que você "viu" e na Airfryer.`;
-    }
+    if (ingredient) prompt += `\nIngredientes principais do usuário: ${ingredient}.`;
+    if (image) prompt += `\nAnalise a imagem e use os ingredientes visíveis como base.`;
 
     prompt += `
-      Retorne APENAS um objeto JSON válido com:
+      Formato EXATO do JSON esperado:
       {
-        "titulo": "título chamativo",
-        "ingredientes": ["lista", "de", "itens"],
-        "preparo": ["passo 1", "passo 2"],
-        "hook": "gancho impactante de 3 segundos para o vídeo",
-        "legenda": "legenda com emojis e gatilhos mentais",
-        "hashtags": ["#tag1", "#tag2"]
+        "receitas": [
+          {
+            "titulo": "título chamativo 1",
+            "ingredientes": ["item principal", "tempero básico", "etc"],
+            "preparo": ["passo 1", "passo 2"],
+            "hook": "gancho impactante do vídeo 1",
+            "legenda": "legenda viral 1",
+            "hashtags": ["#tag1", "#tag2"]
+          },
+          {
+            "titulo": "título chamativo 2",
+            "ingredientes": ["item alternativo", "tempero básico", "etc"],
+            "preparo": ["passo 1", "passo 2"],
+            "hook": "gancho impactante do vídeo 2",
+            "legenda": "legenda viral 2",
+            "hashtags": ["#tag3", "#tag4"]
+          }
+        ]
       }
     `;
 
     let result;
-    
-    // Se tiver imagem, enviamos o texto + a foto
     if (image) {
-      // O frontend manda a imagem como "data:image/jpeg;base64,/9j/4AAQ..."
-      // Precisamos separar o cabeçalho dos dados reais
       const base64Data = image.split(',')[1];
       const mimeType = image.split(';')[0].split(':')[1];
-
-      const imagePart = {
-        inlineData: {
-          data: base64Data,
-          mimeType: mimeType
-        }
-      };
-      result = await model.generateContent([prompt, imagePart]);
+      result = await model.generateContent([prompt, { inlineData: { data: base64Data, mimeType } }]);
     } else {
-      // Se não tiver imagem, enviamos só o texto
       result = await model.generateContent(prompt);
     }
 
-    const response = await result.response;
-    const text = response.text();
-    
+    const text = await result.response.text();
     return NextResponse.json(JSON.parse(text));
   } catch (error) {
-    console.error("🔥 ERRO DETALHADO DO GEMINI:", error);
+    console.error("ERRO:", error);
     return NextResponse.json({ error: "Erro na geração" }, { status: 500 });
   }
 }
