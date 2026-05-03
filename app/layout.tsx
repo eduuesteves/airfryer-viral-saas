@@ -31,12 +31,11 @@ export default function RootLayout({
     >
       <head>
         {/* O SEU CÓDIGO DO GOOGLE ADSENSE VEM AQUI */}
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1612026111512980"
+        <script 
+          async 
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1612026111512980" 
           crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
+        ></script>
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {children}
