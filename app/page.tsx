@@ -336,9 +336,23 @@ export default function Home() {
                 <button disabled className="px-5 py-2.5 bg-zinc-800 text-zinc-500 rounded-xl text-sm cursor-not-allowed">Aguarde...</button>
               )}
             </div>
-          </div>
+</div>
         </div>
       )}
+
+      {/* ADICIONE O FOOTER EXATAMENTE AQUI, ANTES DA ÚLTIMA DIV */}
+      <footer className="w-full border-t border-zinc-900 py-8 mt-auto z-40 relative bg-zinc-950">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
+          <div>
+            © {new Date().getFullYear()} Vértice Tech. Todos os direitos reservados.
+          </div>
+          <div className="flex gap-6">
+            <a href="/privacidade" className="hover:text-white transition-colors">Política de Privacidade</a>
+            <a href="mailto:seuemail@gmail.com" className="hover:text-white transition-colors">Contato</a>
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 }
