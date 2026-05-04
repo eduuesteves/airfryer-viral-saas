@@ -1,358 +1,340 @@
 "use client";
 
-import { useState, useRef } from "react";
-
-// As 30 receitas mais buscadas para a aba "Em Alta"
-const TOP_30_RECEITAS = [
-  "Batata Frita Crocante", "Pão de Queijo Rápido", "Frango a Passarinho", "Torresmo Sequinho", 
-  "Coxinha Fit", "Dadinho de Tapioca", "Pudim de Leite", "Bolo de Caneca", "Bife Acebolado", 
-  "Linguiça Toscana", "Mandioca Frita", "Churrasco", "Peixe Empanado", "Nuggets Caseiro", 
-  "Pastel de Vento", "Chips de Batata Doce", "Omelete Recheado", "Bacon Crocante", "Cebola Empanada",
-  "Lasanha em Porção", "Legumes Assados", "Maçã com Canela", "Pizza de Frigideira", "Polenta Frita", 
-  "Kibe Assado", "Misto Quente", "Salmão Grelhado", "Costelinha de Porco", "Pão de Alho", "Torta Salgada"
-];
+import { useState } from "react";
+import Link from "next/link";
 
 export default function Home() {
-  const [activeMainTab, setActiveMainTab] = useState<'create' | 'trending'>('create');
+  const [inputTexto, setInputTexto] = useState("");
+  const [imagem, setImagem] = useState<string | null>(null);
+  const [metodoAtual, setMetodoAtual] = useState("fogao"); 
   
-  // Estados da Geração
-  const [ingredient, setIngredient] = useState("");
-  const [image, setImage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null); // Guardará as 2 receitas
-  const [copied, setCopied] = useState(false);
+  // NOVO ESTADO: Controla se o Modo Vegano está ativado
+  const [isVegano, setIsVegano] = useState(false);
   
-  // Estados da Interface de Resultados
-  const [activeSubTab, setActiveSubTab] = useState<'video' | 'recipe'>('video');
-  const [selectedRecipeIndex, setSelectedRecipeIndex] = useState(0); // 0 = Opção 1, 1 = Opção 2
-  const [unlockedRecipe2, setUnlockedRecipe2] = useState(false);
-  
-  // Estados do Anúncio (Rewarded Ad)
-  const [adModalOpen, setAdModalOpen] = useState(false);
-  const [adCountdown, setAdCountdown] = useState(5);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cacheResultados, setCacheResultados] = useState<Record<string, any>>({});
+  const [status, setStatus] = useState<"ocioso" | "vendo_anuncio" | "gerando" | "pronto">("ocioso");
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const topReceitas = [
+    { cat: "🔥 Top Fogão", pratos: ["Strogonoff Clássico", "Macarrão à Carbonara", "Arroz de Forno Cremoso", "Picadinho de Carne", "Panqueca de Carne", "Omelete Recheado"] },
+    { cat: "💨 Top Airfryer", pratos: ["Batata Rústica", "Frango a Passarinho Crocante", "Dadinho de Tapioca", "Pão de Alho Caseiro", "Torresmo Pururuca", "Coxinha Fit"] },
+    { cat: "♨️ Top Micro-ondas", pratos: ["Bolo de Caneca de Chocolate", "Pudim de Leite Rápido", "Omelete de Caneca", "Pipoca Caramelizada", "Arroz de Micro-ondas", "Macarrão com Queijo"] },
+    { cat: "❄️ Receitas Frias", pratos: ["Salada Caprese", "Wrap de Atum", "Ceviche de Tilápia", "Patê de Frango", "Salpicão Tradicional", "Sanduíche Natural"] },
+    { cat: "🥗 Favoritos Vegetarianos/Veganos", pratos: ["Escondidinho de Cogumelos", "Hambúrguer de Grão de Bico", "Moqueca de Banana da Terra", "Lasanha de Berinjela", "Risoto de Alho-poró", "Salada de Quinoa"] },
+  ];
+
+  const metodos = [
+    { id: "fogao", nome: "Fogão", icone: "🔥" },
+    { id: "airfryer", nome: "Airfryer", icone: "💨" },
+    { id: "microondas", nome: "Micro", icone: "♨️" },
+    { id: "geladeira", nome: "Frios", icone: "❄️" },
+    { id: "viralizar", nome: "TikTok", icone: "📱" },
+    { id: "top30", nome: "Top 30", icone: "🏆" },
+  ];
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setImage(reader.result as string);
+      reader.onloadend = () => setImagem(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
 
-  const generateViralPost = async () => {
-    if (!ingredient && !image) return; 
-    setLoading(true);
-    setCopied(false);
-    setSelectedRecipeIndex(0);
-    setUnlockedRecipe2(false); // Reseta o bloqueio a cada nova geração
-    
+  async function buscarNaAPI(metodo: string) {
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredient, image }),
-      });
-      
-      const data = await res.json();
-      if (data.error) {
-        alert("Erro da API: " + data.error);
-        return;
+      if (metodo === "viralizar") {
+        const response = await fetch("/api/viralizar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // A API viralizar agora também recebe o status vegano, caso você queira adaptar ela no futuro
+          body: JSON.stringify({ ingredient: inputTexto, image: imagem, vegano: isVegano }),
+        });
+        const data = await response.json();
+        setCacheResultados(prev => ({ ...prev, [metodo]: { tipo: "viral", dados: data.receitas } }));
+      } else {
+        const response = await fetch("/api/cozinhar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // MANDANDO O ESTADO VEGANO PARA A IA
+          body: JSON.stringify({ ingredientes: inputTexto, metodo, image: imagem, vegano: isVegano }),
+        });
+        const data = await response.json();
+        setCacheResultados(prev => ({ ...prev, [metodo]: { tipo: "json_receita", dados: data.resultado } }));
       }
-      setResult(data);
-      setActiveSubTab('video');
+      setStatus("pronto");
     } catch (error) {
-      alert("Erro ao gerar. Tente novamente.");
-    } finally {
-      setLoading(false);
+      alert("Deu um erro na geração! Tente de novo.");
+      setStatus("ocioso");
     }
-  };
+  }
 
-  const copyToClipboard = () => {
-    if (!result || !result.receitas) return;
-    const currentRecipe = result.receitas[selectedRecipeIndex];
-    const textToCopy = `${currentRecipe.titulo}\n\n${currentRecipe.legenda}\n\n${currentRecipe.hashtags.join(" ")}`;
-    navigator.clipboard.writeText(textToCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  async function iniciarGeracao() {
+    if (!inputTexto && !imagem) {
+      alert("A geladeira não pode estar vazia! Digite algo ou envie uma foto.");
+      return;
+    }
+    setCacheResultados({});
+    setStatus("vendo_anuncio");
+    setTimeout(() => {
+      setStatus("gerando");
+      buscarNaAPI(metodoAtual);
+    }, 3000); 
+  }
 
-  // Função que simula o usuário assistindo a um anúncio para desbloquear a Opção 2
-  const watchAdToUnlock = () => {
-    setAdModalOpen(true);
-    setAdCountdown(5);
-    
-    const interval = setInterval(() => {
-      setAdCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setUnlockedRecipe2(true);
-          setSelectedRecipeIndex(1);
-          setAdModalOpen(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+  async function handleTrocarMetodo(novoMetodo: string) {
+    setMetodoAtual(novoMetodo);
+    if (novoMetodo === "top30") {
+      setStatus("ocioso");
+      return;
+    }
+    if (status === "ocioso") return;
+    if (cacheResultados[novoMetodo]) {
+      setStatus("pronto");
+      return;
+    }
+    setStatus("vendo_anuncio");
+    setTimeout(() => {
+      setStatus("gerando");
+      buscarNaAPI(novoMetodo);
+    }, 3000);
+  }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-orange-500/30 overflow-x-hidden flex flex-col">
+    <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans selection:bg-orange-500/30 flex flex-col relative">
       
-      {/* HEADER E NAVEGAÇÃO PRINCIPAL */}
-      <header className="w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center font-bold shadow-lg">V</div>
-            <span className="font-bold tracking-wide text-zinc-100 hidden sm:block">Vértice Tech</span>
+      {status === "vendo_anuncio" && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+          <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6">
+            <span className="text-5xl animate-bounce">📢</span>
+            <h2 className="text-xl font-bold text-white">Apoiando o FazRango...</h2>
+            <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden mt-4">
+              <div className="h-full bg-orange-500 animate-[progress_3s_ease-in-out_forwards]"></div>
+            </div>
           </div>
-          
-          <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800">
-            <button 
-              onClick={() => setActiveMainTab('create')}
-              className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeMainTab === 'create' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              ✨ Criar Receita
-            </button>
-            <button 
-              onClick={() => setActiveMainTab('trending')}
-              className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeMainTab === 'trending' ? 'bg-zinc-800 text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              🔥 Top 30 Em Alta
-            </button>
-          </div>
+        </div>
+      )}
+
+      <header className="w-full pt-8 pb-4">
+        <div className="max-w-5xl mx-auto px-4 flex justify-center">
+          <h1 className="font-extrabold tracking-tight text-white text-3xl md:text-5xl drop-shadow-lg">
+            Faz<span className="text-orange-500">Rango</span>
+          </h1>
         </div>
       </header>
 
-      {/* ABA: TOP 30 EM ALTA */}
-      {activeMainTab === 'trending' && (
-        <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 animate-in fade-in">
-          <h2 className="text-3xl font-extrabold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">O que o mundo está fritando?</h2>
-          <p className="text-zinc-400 mb-8">As 30 receitas mais procuradas e virais para Airfryer nesta semana. Clique em uma para gerar agora!</p>
-          
-          {/* BANNER ADSENSE MOCK */}
-          <div className="w-full h-24 bg-zinc-900 border border-dashed border-zinc-700 rounded-xl flex flex-col items-center justify-center mb-8 text-zinc-500">
-            <span className="text-xs uppercase tracking-widest mb-1">Publicidade (Google AdSense)</span>
-            <span>Aqui ficará o seu banner do AdSense</span>
-          </div>
-
-          {/* LISTA INTERATIVA DO TOP 30 */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 pb-12">
-            {TOP_30_RECEITAS.map((item, index) => (
-              <button 
-                key={index} 
-                onClick={() => {
-                  setIngredient(item); // 1. Preenche o input
-                  setImage(null); // Limpa imagem, se houver
-                  setActiveMainTab('create'); // 2. Volta pra aba principal
-                  
-                  // 3. Aguarda o React atualizar o texto e clica no botão principal
-                  setTimeout(() => {
-                    const btn = document.getElementById("btn-gerar-oculto");
-                    if (btn) btn.click();
-                  }, 100);
-                }}
-                className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl hover:bg-zinc-800 hover:border-orange-500/50 transition-all cursor-pointer flex flex-col items-center text-center gap-3 group shadow-sm hover:shadow-md"
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 flex flex-col gap-6 mt-4 pb-12">
+        
+        <div className="w-full flex overflow-x-auto no-scrollbar bg-zinc-900/60 border border-zinc-800 rounded-2xl p-1.5 gap-1.5">
+          {metodos.map((m) => {
+            const isAtivo = metodoAtual === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => handleTrocarMetodo(m.id)}
+                className={`flex-1 min-w-[100px] flex flex-col md:flex-row items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs md:text-sm font-bold transition-all border ${
+                  isAtivo ? "bg-zinc-800 text-orange-400 shadow-md border-orange-500/30" : "border-transparent text-zinc-500 hover:text-zinc-300"
+                }`}
               >
-                <div className="w-12 h-12 rounded-full bg-zinc-950 border border-zinc-800 group-hover:border-orange-500/50 flex items-center justify-center font-black text-orange-500 text-lg transition-colors">
-                  #{index + 1}
-                </div>
-                <span className="font-semibold text-sm text-zinc-300 group-hover:text-white">{item}</span>
-                <span className="text-[10px] text-zinc-600 group-hover:text-orange-400 uppercase tracking-widest transition-colors">Gerar Roteiro</span>
+                <span className="text-xl">{m.icone}</span>
+                <span>{m.nome}</span>
               </button>
+            );
+          })}
+        </div>
+
+        {metodoAtual !== "top30" && (
+          <div className="w-full bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-2 shadow-lg flex flex-col animate-fade-in">
+            <textarea
+              value={inputTexto}
+              onChange={(e) => {
+                setInputTexto(e.target.value);
+                if(status !== "ocioso") setStatus("ocioso");
+              }}
+              placeholder={metodoAtual === "viralizar" ? "Qual tema do vídeo?" : "O que tem na geladeira hoje?"}
+              className="w-full bg-transparent text-zinc-100 placeholder:text-zinc-600 focus:outline-none resize-none min-h-[90px] p-4 text-lg"
+            />
+            
+            {/* LINHA DE CONTROLES: FOTO E MODO VEGANO */}
+            <div className="px-4 pb-4 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-800/50 pt-4 mt-2">
+              
+              {!imagem ? (
+                <label className="flex items-center gap-3 w-max bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-5 py-2.5 rounded-xl cursor-pointer transition-colors text-sm font-bold shadow-md">
+                  <span className="text-lg">📸</span>
+                  <span className="hidden sm:inline">Anexar Foto da Geladeira</span>
+                  <span className="sm:hidden">Foto</span>
+                  <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
+                </label>
+              ) : (
+                <div className="flex items-center gap-4 bg-zinc-950 p-2 rounded-xl w-max border border-zinc-700 shadow-inner">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imagem} alt="Preview" className="w-14 h-14 rounded-lg object-cover" />
+                  <button onClick={() => setImagem(null)} className="text-red-400 text-sm font-bold pr-3">Remover Foto</button>
+                </div>
+              )}
+
+              {/* O NOVO INTERRUPTOR VEGANO */}
+              <label className={`flex items-center gap-3 px-5 py-2.5 rounded-xl cursor-pointer transition-all border text-sm font-bold shadow-md ${
+                isVegano 
+                  ? "bg-green-500/10 border-green-500/50 text-green-400" 
+                  : "bg-zinc-800/50 border-zinc-700/50 text-zinc-500 hover:bg-zinc-800"
+              }`}>
+                <input 
+                  type="checkbox" 
+                  checked={isVegano} 
+                  onChange={(e) => {
+                    setIsVegano(e.target.checked);
+                    if(status !== "ocioso") setStatus("ocioso"); // Reseta o status se ele mudar de ideia
+                  }} 
+                  className="hidden" 
+                />
+                <span className="text-lg grayscale-0">🌱</span>
+                <span>Modo Vegano</span>
+                {/* Bolinha que simula um Switch de iPhone */}
+                <div className={`w-8 h-4 rounded-full flex items-center p-0.5 transition-colors ${isVegano ? "bg-green-500" : "bg-zinc-600"}`}>
+                  <div className={`w-3 h-3 rounded-full bg-white transition-transform ${isVegano ? "translate-x-4" : "translate-x-0"}`}></div>
+                </div>
+              </label>
+
+            </div>
+            
+            {status === "ocioso" && (
+              <button
+                onClick={iniciarGeracao}
+                className={`w-full text-white font-bold text-xl py-4 rounded-2xl transition-all shadow-lg mx-auto mb-2 w-[96%] ${
+                  metodoAtual === "viralizar" ? "bg-purple-600 shadow-purple-600/20" : "bg-orange-600 shadow-orange-600/20"
+                }`}
+              >
+                {metodoAtual === "viralizar" ? "Gerar Roteiro Viral" : "Cozinhar com IA"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {status === "gerando" && metodoAtual !== "top30" && (
+          <div className="w-full p-16 flex flex-col items-center justify-center gap-6 text-zinc-500 animate-pulse">
+            <span className="text-5xl">{isVegano ? "🌱" : "👨‍🍳"}</span>
+            <p className="font-medium text-lg">Analisando e gerando a receita perfeita...</p>
+          </div>
+        )}
+
+        {metodoAtual === "top30" && (
+          <div className="w-full animate-fade-in space-y-12">
+            <div className="text-center space-y-3 mb-8">
+              <h2 className="text-3xl md:text-4xl font-black text-white">Top 30 Receitas</h2>
+              <p className="text-zinc-400">Sem ideias? Escolha entre as favoritas da comunidade.</p>
+            </div>
+            {topReceitas.map((categoria, idx) => (
+              <div key={idx} className="space-y-6">
+                <h3 className={`text-2xl font-black ${categoria.cat.includes("Vegetarianos") ? "text-green-500" : "text-zinc-200"}`}>
+                  {categoria.cat}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {categoria.pratos.map((prato, pratoIdx) => (
+                    <div key={pratoIdx} className="bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors group">
+                      <span className="text-sm md:text-base font-bold text-zinc-300 group-hover:text-orange-400 transition-colors">{prato}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        </main>
-      )}
+        )}
 
-      {/* ABA: CRIAR RECEITA (O SaaS Principal) */}
-      {activeMainTab === 'create' && (
-        <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-10 flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-20">
-          
-          {/* PAINEL ESQUERDO */}
-          <div className="w-full max-w-lg space-y-8">
-            <div className="space-y-3">
-              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 pb-2">
-                Airfryer Viralizer
-              </h1>
-              <p className="text-zinc-400 text-lg md:text-xl">
-                Tire uma foto ou digite. Nós criamos 2 roteiros virais para você.
-              </p>
-            </div>
-
-            <div className="bg-zinc-900/40 p-1.5 rounded-3xl border border-zinc-800/50 backdrop-blur-sm shadow-2xl">
-              <div className="p-6 md:p-8 space-y-5 bg-zinc-900/50 rounded-2xl">
-                
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={ingredient}
-                      onChange={(e) => setIngredient(e.target.value)}
-                      placeholder="Ex: Frango e Batata"
-                      className="w-full p-4 pl-12 rounded-xl bg-zinc-950 border border-zinc-800 focus:outline-none focus:border-orange-500 text-lg"
-                      onKeyDown={(e) => e.key === 'Enter' && generateViralPost()}
-                    />
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl opacity-50">🧊</span>
-                  </div>
-                  
-                  <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />
-                  <button onClick={() => fileInputRef.current?.click()} className="bg-zinc-800 hover:bg-zinc-700 p-4 rounded-xl border border-zinc-700 flex items-center justify-center text-2xl">📷</button>
-                </div>
-
-                {image && (
-                  <div className="relative w-full h-32 rounded-xl overflow-hidden border-2 border-orange-500/50">
-                    <img src={image} alt="Preview" className="w-full h-full object-cover opacity-80" />
-                    <button onClick={() => setImage(null)} className="absolute top-2 right-2 bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-500 text-sm font-bold">X</button>
-                  </div>
-                )}
-                
-                <button 
-                  id="btn-gerar-oculto"
-                  onClick={generateViralPost} 
-                  disabled={loading || (!ingredient && !image)} 
-                  className="w-full relative group bg-zinc-100 hover:bg-white text-zinc-950 p-4 font-bold text-lg rounded-xl transition-all disabled:opacity-50"
-                >
-                  <span className="relative flex items-center justify-center gap-2 group-hover:text-orange-600 transition-colors">
-                    {loading ? "Processando IA..." : "⚡ Gerar Duas Opções Virais"}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* BANNER DE AFILIADO AMAZON */}
-            <a href="https://amzn.to/4d5UPZX" target="_blank" rel="noopener noreferrer" className="block bg-gradient-to-r from-blue-900 to-blue-950 p-5 rounded-2xl border border-blue-800 hover:border-orange-500 transition-all shadow-lg">
-              <div className="flex items-center gap-4">
-                <div className="text-4xl">🛒</div>
-                <div>
-                  <h3 className="font-bold text-white mb-1 text-sm md:text-base">Sua Airfryer não é mais tão crocante?</h3>
-                  <p className="text-xs md:text-sm text-blue-300">Aproveite descontos de até 40% nas Airfryers mais potentes na Amazon. <span className="text-orange-400 font-bold underline">Compre agora.</span></p>
-                </div>
-              </div>
-            </a>
-            <a href="https://amzn.to/4cVMAj6" target="_blank" rel="noopener noreferrer" className="block bg-gradient-to-r from-blue-900 to-blue-950 p-5 rounded-2xl border border-blue-800 hover:border-orange-500 transition-all shadow-lg">
-              <div className="flex items-center gap-4">
-                <div className="text-4xl">🛒</div>
-                <div>
-                  <h3 className="font-bold text-white mb-1 text-sm md:text-base">Sua Airfryer não é mais tão crocante?</h3>
-                  <p className="text-xs md:text-sm text-blue-300">Aproveite descontos de até 40% nas Airfryers mais potentes na Amazon. <span className="text-orange-400 font-bold underline">Compre agora.</span></p>
-                </div>
-              </div>
-            </a>
-          </div>
-
-          {/* PAINEL DIREITO: RESULTADOS */}
-          <div className="w-full max-w-[340px] flex-shrink-0 flex flex-col items-center gap-4">
+        {status === "pronto" && cacheResultados[metodoAtual] && metodoAtual !== "top30" && (
+          <div className="w-full animate-fade-in flex flex-col gap-8 mt-2">
             
-            {/* SELETOR DE OPÇÕES (GRÁTIS vs ANÚNCIO) */}
-            {!loading && result?.receitas && (
-              <div className="flex gap-2 w-full animate-in slide-in-from-top">
-                <button 
-                  onClick={() => setSelectedRecipeIndex(0)}
-                  className={`flex-1 p-2 rounded-lg text-xs font-bold border transition-all ${selectedRecipeIndex === 0 ? 'bg-orange-500 border-orange-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}
-                >
-                  Opção 1 (Grátis)
-                </button>
-                
-                <button 
-                  onClick={() => unlockedRecipe2 ? setSelectedRecipeIndex(1) : watchAdToUnlock()}
-                  className={`flex-1 p-2 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1 ${selectedRecipeIndex === 1 ? 'bg-orange-500 border-orange-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'}`}
-                >
-                  {unlockedRecipe2 ? "Opção 2" : <>🔒 Opção 2 (Ver Anúncio)</>}
-                </button>
+            <div className="w-full h-24 sm:h-[250px] bg-zinc-900/30 border border-zinc-800/50 border-dashed rounded-3xl flex items-center justify-center text-zinc-600">
+              <span>📢 Anúncio Premium</span>
+            </div>
+
+            {/* SE DEVOLVER ERRO COM A NOVA MENSAGEM EDUCADA */}
+            {cacheResultados[metodoAtual].tipo === "json_receita" && cacheResultados[metodoAtual].dados?.erro ? (
+               <div className="w-full bg-red-500/10 border border-red-500/30 rounded-3xl p-8 text-center space-y-4">
+                 <span className="text-4xl">🛑</span>
+                 <h2 className="text-xl font-bold text-red-400">Não consegui criar a receita!</h2>
+                 <p className="text-zinc-300">{cacheResultados[metodoAtual].dados.erro}</p>
+                 <button onClick={() => setStatus("ocioso")} className="mt-4 px-6 py-2 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-white transition-colors">Tentar Outros Ingredientes</button>
+               </div>
+            ) : cacheResultados[metodoAtual].tipo === "json_receita" && cacheResultados[metodoAtual].dados && (
+              <div className="relative overflow-hidden bg-zinc-900 border border-orange-500/20 rounded-3xl p-6 md:p-10 shadow-2xl">
+                {/* Linha colorida do topo muda para verde se a receita for vegana */}
+                <div className={`absolute top-0 left-0 w-full h-2 ${isVegano ? "bg-gradient-to-r from-green-600 to-emerald-400" : "bg-gradient-to-r from-orange-600 to-yellow-500"}`}></div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-zinc-800/60 pb-6">
+                  <h2 className="text-2xl md:text-4xl font-black text-white">
+                    {cacheResultados[metodoAtual].dados.titulo}
+                    {isVegano && <span className="ml-3 text-2xl" title="Receita Vegana">🌱</span>}
+                  </h2>
+                  <div className="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-4 py-2 rounded-full text-sm font-bold">
+                    ⏱️ {cacheResultados[metodoAtual].dados.tempo}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+                  <div className="bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800">
+                    <h4 className="text-lg font-black text-orange-400 mb-4">🛒 Ingredientes</h4>
+                    <ul className="space-y-3">
+                      {cacheResultados[metodoAtual].dados.ingredientes?.map((ing: string, i: number) => (
+                        <li key={i} className="flex gap-3 text-zinc-300"><span className="text-orange-500">•</span> {ing}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-black text-zinc-100 mb-4">👨‍🍳 Preparo</h4>
+                    <div className="space-y-4">
+                      {cacheResultados[metodoAtual].dados.preparo?.map((passo: string, i: number) => (
+                        <div key={i} className="flex gap-4">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-500/20 text-orange-400 font-bold flex items-center justify-center border border-orange-500/30">{i + 1}</div>
+                          <p className="text-zinc-300 pt-1">{passo}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* SELETOR DE VÍDEO / RECEITA */}
-            {!loading && result?.receitas && (
-              <div className="flex bg-zinc-900 p-1.5 rounded-2xl border border-zinc-800 w-full animate-in fade-in">
-                <button onClick={() => setActiveSubTab('video')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'video' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}>📱 Vídeo Viral</button>
-                <button onClick={() => setActiveSubTab('recipe')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'recipe' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}>🍳 Passo a Passo</button>
-              </div>
-            )}
-
-            {/* CONTEÚDO (CELULAR OU CARD) */}
-            {activeSubTab === 'video' ? (
-              <div className={`relative w-full aspect-[9/16] bg-zinc-900 rounded-[3rem] border-[10px] border-black shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col justify-between ring-1 ring-white/10 ${loading ? 'animate-pulse' : ''}`}>
-                <div className="absolute top-0 inset-x-0 h-7 bg-black z-20 rounded-b-3xl flex justify-center w-[140px] mx-auto"><div className="w-16 h-1.5 bg-zinc-800 rounded-full mt-2"></div></div>
-
-                {loading ? (
-                  <div className="absolute inset-0 flex items-center justify-center"><div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div></div>
-                ) : result?.receitas ? (
-                  <>
-                    <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black z-0"></div>
-                    <div className="relative z-10 flex-1 flex items-center justify-center p-6">
-                      <div className="bg-black/60 backdrop-blur-xl p-5 rounded-2xl border border-white/10">
-                        <h2 className="text-xl font-black text-white text-center drop-shadow-lg">{result.receitas[selectedRecipeIndex].hook}</h2>
+            {cacheResultados[metodoAtual].tipo === "viral" && cacheResultados[metodoAtual].dados && (
+                <div className="space-y-8">
+                  {cacheResultados[metodoAtual].dados.map((receita: any, index: number) => (
+                    <div key={index} className="relative overflow-hidden bg-zinc-900 border border-purple-500/20 rounded-3xl p-6 shadow-2xl">
+                      <div className="absolute top-0 left-0 w-2 h-full bg-purple-500"></div>
+                      <h3 className="text-2xl font-black text-white mb-6 pr-4">{receita.titulo}</h3>
+                      <div className="bg-zinc-950 p-5 rounded-2xl border border-zinc-800 mb-6">
+                        <h4 className="text-xs font-black text-zinc-500 uppercase">🎣 Hook</h4>
+                        <p className="text-orange-400 font-bold italic mt-2">"{receita.hook}"</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div className="bg-zinc-950/50 p-5 rounded-2xl border border-zinc-800/50">
+                           <h4 className="text-xs font-black text-purple-400 uppercase mb-3">🛒 Ingredientes</h4>
+                           <ul className="list-disc list-inside text-zinc-300 space-y-2">{receita.ingredientes?.map((ing: string, i: number) => <li key={i}>{ing}</li>)}</ul>
+                         </div>
+                         <div className="bg-zinc-950/50 p-5 rounded-2xl border border-zinc-800/50">
+                           <h4 className="text-xs font-black text-zinc-500 uppercase mb-3">📝 Legenda do Post</h4>
+                           <p className="text-zinc-300 text-sm whitespace-pre-wrap">{receita.legenda}</p>
+                           <p className="text-purple-400 text-sm mt-3 font-medium">{receita.hashtags?.join(" ")}</p>
+                         </div>
                       </div>
                     </div>
-                    <div className="relative z-10 p-5 bg-gradient-to-t from-black via-black/90 to-transparent pt-12">
-                      <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                        <p className="text-sm text-zinc-200"><span className="font-bold">{result.receitas[selectedRecipeIndex].titulo}</span> — {result.receitas[selectedRecipeIndex].legenda}</p>
-                        <p className="text-xs font-semibold text-orange-400 mt-2">{result.receitas[selectedRecipeIndex].hashtags.join(" ")}</p>
-                        <button onClick={copyToClipboard} className="w-full mt-4 py-2 bg-white/10 rounded-xl text-sm font-bold text-white hover:bg-white/20">{copied ? "✅ Copiado!" : "📋 Copiar Legenda"}</button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 bg-zinc-950 flex items-center justify-center opacity-30 text-4xl">📱</div>
-                )}
-              </div>
-            ) : (
-              <div className="w-full aspect-[9/16] bg-zinc-900 rounded-[3rem] border border-zinc-800 p-8 overflow-y-auto custom-scrollbar text-sm">
-                <h2 className="text-xl font-bold text-white mb-4">{result.receitas[selectedRecipeIndex].titulo}</h2>
-                <h3 className="font-bold text-orange-400 mb-2">🛒 Ingredientes</h3>
-                <ul className="mb-4 space-y-1">
-                  {result.receitas[selectedRecipeIndex].ingredientes.map((i: string, idx: number) => <li key={idx} className="text-zinc-300">• {i}</li>)}
-                </ul>
-                <h3 className="font-bold text-orange-400 mb-2">👨‍🍳 Preparo</h3>
-                <ol className="space-y-2">
-                  {result.receitas[selectedRecipeIndex].preparo.map((p: string, idx: number) => <li key={idx} className="text-zinc-300">{idx + 1}. {p}</li>)}
-                </ol>
-              </div>
+                  ))}
+                </div>
             )}
           </div>
-        </main>
-      )}
+        )}
+      </main>
 
-      {/* MODAL DO ANÚNCIO EM VÍDEO (REWARDED AD) */}
-      {adModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center flex-col p-6 animate-in fade-in">
-          <div className="w-full max-w-md bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
-            {/* Espaço onde o script real do AdSense rodaria */}
-            <div className="aspect-video bg-zinc-800 flex items-center justify-center flex-col text-center p-6 relative">
-              <span className="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-zinc-400 font-bold tracking-widest uppercase">Patrocinado</span>
-              <span className="text-4xl mb-4">📺</span>
-              <p className="font-bold text-white text-lg">Apoie a Vértice Tech</p>
-              <p className="text-sm text-zinc-400">Assista este anúncio rápido para desbloquear sua receita exclusiva.</p>
-            </div>
-            <div className="p-4 bg-zinc-950 flex justify-between items-center border-t border-zinc-800">
-              <span className="text-sm font-bold text-zinc-400">Liberando em: <span className="text-orange-500 text-lg">{adCountdown}s</span></span>
-              {adCountdown === 0 ? (
-                <button onClick={() => setAdModalOpen(false)} className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 transition-colors text-white rounded-xl text-sm font-bold shadow-lg">Desbloquear Receita</button>
-              ) : (
-                <button disabled className="px-5 py-2.5 bg-zinc-800 text-zinc-500 rounded-xl text-sm cursor-not-allowed">Aguarde...</button>
-              )}
-            </div>
-</div>
-        </div>
-      )}
-
-      {/* ADICIONE O FOOTER EXATAMENTE AQUI, ANTES DA ÚLTIMA DIV */}
-      <footer className="w-full border-t border-zinc-900 py-8 mt-auto z-40 relative bg-zinc-950">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
-          <div>
-            © {new Date().getFullYear()} Vértice Tech. Todos os direitos reservados.
+      <footer className="w-full border-t border-zinc-900 bg-zinc-950/80 backdrop-blur-md py-8 mt-auto z-40">
+        <div className="max-w-5xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-zinc-400">FazRango</span>
+            <span>© {new Date().getFullYear()}</span>
           </div>
-          <div className="flex gap-6">
-            <a href="/privacidade" className="hover:text-white transition-colors">Política de Privacidade</a>
-            <a href="mailto:seuemail@gmail.com" className="hover:text-white transition-colors">Contato</a>
+          <div className="flex gap-6 font-medium">
+            <Link href="/privacidade" className="hover:text-orange-400 transition-colors">Política de Privacidade</Link>
+            <Link href="/termos" className="hover:text-orange-400 transition-colors">Termos de Uso</Link>
           </div>
         </div>
       </footer>
-
+      
+      <style dangerouslySetInnerHTML={{__html: `@keyframes progress { 0% { width: 0%; } 100% { width: 100%; } }`}} />
     </div>
   );
 }

@@ -15,8 +15,13 @@ const geistMono = Geist_Mono({
 
 // Arrumamos o nome do seu site para a aba do navegador e para o Google
 export const metadata: Metadata = {
-  title: "Airfryer Viralizer | Vértice Tech",
-  description: "Crie roteiros virais e receitas para Airfryer com IA em segundos.",
+  title: "FazRango | Sua IA na Cozinha",
+  description: "Crie roteiros virais ou descubra receitas práticas com o que você tem na geladeira.",
+  manifest: "/manifest.json",
+};
+
+export const viewport = {
+  themeColor: "#f97316",
 };
 
 export default function RootLayout({

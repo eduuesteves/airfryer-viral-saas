@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Fundo do App (Dark Mode) -->
+  <rect width="512" height="512" rx="112" fill="#09090b" />
+  
+  <!-- Efeito de brilho laranja ao fundo -->
+  <circle cx="256" cy="220" r="140" fill="#f97316" opacity="0.3" />
+  
+  <!-- Ícone de Fogo (A Mágica da Cozinha) -->
+  <path d="M256 120 C 200 170 170 210 170 260 C 170 310 200 340 256 340 C 312 340 342 310 342 260 C 342 210 312 170 256 120 Z" fill="#f97316" />
+  <path d="M256 180 C 220 220 200 240 200 270 C 200 300 220 320 256 320 C 292 320 312 300 312 270 C 312 240 292 220 256 180 Z" fill="#ffedd5" />
+  
+  <!-- Texto Oficial -->
+  <text x="256" y="440" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="64" fill="#ffffff" text-anchor="middle" letter-spacing="1">
+    FAZ<tspan fill="#f97316">RANGO</tspan>
+  </text>
+</svg>
