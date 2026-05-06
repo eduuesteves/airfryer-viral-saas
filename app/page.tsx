@@ -7,10 +7,7 @@ export default function Home() {
   const [inputTexto, setInputTexto] = useState("");
   const [imagem, setImagem] = useState<string | null>(null);
   const [metodoAtual, setMetodoAtual] = useState("fogao"); 
-  
-  // NOVO ESTADO: Controla se o Modo Vegano está ativado
   const [isVegano, setIsVegano] = useState(false);
-  
   const [cacheResultados, setCacheResultados] = useState<Record<string, any>>({});
   const [status, setStatus] = useState<"ocioso" | "vendo_anuncio" | "gerando" | "pronto">("ocioso");
 
@@ -28,7 +25,6 @@ export default function Home() {
     { id: "microondas", nome: "Micro", icone: "♨️" },
     { id: "geladeira", nome: "Frios", icone: "❄️" },
     { id: "viralizar", nome: "TikTok", icone: "📱" },
-    { id: "top30", nome: "Top 30", icone: "🏆" },
   ];
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,7 +42,6 @@ export default function Home() {
         const response = await fetch("/api/viralizar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // A API viralizar agora também recebe o status vegano, caso você queira adaptar ela no futuro
           body: JSON.stringify({ ingredient: inputTexto, image: imagem, vegano: isVegano }),
         });
         const data = await response.json();
@@ -55,7 +50,6 @@ export default function Home() {
         const response = await fetch("/api/cozinhar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // MANDANDO O ESTADO VEGANO PARA A IA
           body: JSON.stringify({ ingredientes: inputTexto, metodo, image: imagem, vegano: isVegano }),
         });
         const data = await response.json();
@@ -83,10 +77,6 @@ export default function Home() {
 
   async function handleTrocarMetodo(novoMetodo: string) {
     setMetodoAtual(novoMetodo);
-    if (novoMetodo === "top30") {
-      setStatus("ocioso");
-      return;
-    }
     if (status === "ocioso") return;
     if (cacheResultados[novoMetodo]) {
       setStatus("pronto");
@@ -97,6 +87,31 @@ export default function Home() {
       setStatus("gerando");
       buscarNaAPI(novoMetodo);
     }, 3000);
+  }
+
+  // NOVA FUNÇÃO: O "Cérebro" do clique no Top 30
+  function selecionarPratoTop30(prato: string, categoria: string) {
+    // 1. Preenche a caixa de texto
+    setInputTexto(`Gostaria da receita de: ${prato}`);
+    
+    // 2. Descobre qual é a aba correta com base no título da categoria
+    let abaCorreta = "fogao";
+    if (categoria.includes("Airfryer")) abaCorreta = "airfryer";
+    else if (categoria.includes("Micro-ondas")) abaCorreta = "microondas";
+    else if (categoria.includes("Frias")) abaCorreta = "geladeira";
+    
+    // 3. Muda a aba lá em cima
+    setMetodoAtual(abaCorreta);
+
+    // 4. Se for da categoria vegana, já liga o interruptor verde sozinho!
+    if (categoria.includes("Vegetarianos")) {
+      setIsVegano(true);
+    } else {
+      setIsVegano(false);
+    }
+
+    // 5. Rola a tela suavemente para o topo para o usuário ver o que aconteceu
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   return (
@@ -142,95 +157,83 @@ export default function Home() {
           })}
         </div>
 
-        {metodoAtual !== "top30" && (
-          <div className="w-full bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-2 shadow-lg flex flex-col animate-fade-in">
-            <textarea
-              value={inputTexto}
-              onChange={(e) => {
-                setInputTexto(e.target.value);
-                if(status !== "ocioso") setStatus("ocioso");
-              }}
-              placeholder={metodoAtual === "viralizar" ? "Qual tema do vídeo?" : "O que tem na geladeira hoje?"}
-              className="w-full bg-transparent text-zinc-100 placeholder:text-zinc-600 focus:outline-none resize-none min-h-[90px] p-4 text-lg"
-            />
-            
-            {/* LINHA DE CONTROLES: FOTO E MODO VEGANO */}
-            <div className="px-4 pb-4 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-800/50 pt-4 mt-2">
-              
-              {!imagem ? (
-                <label className="flex items-center gap-3 w-max bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-5 py-2.5 rounded-xl cursor-pointer transition-colors text-sm font-bold shadow-md">
-                  <span className="text-lg">📸</span>
-                  <span className="hidden sm:inline">Anexar Foto da Geladeira</span>
-                  <span className="sm:hidden">Foto</span>
-                  <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
-                </label>
-              ) : (
-                <div className="flex items-center gap-4 bg-zinc-950 p-2 rounded-xl w-max border border-zinc-700 shadow-inner">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imagem} alt="Preview" className="w-14 h-14 rounded-lg object-cover" />
-                  <button onClick={() => setImagem(null)} className="text-red-400 text-sm font-bold pr-3">Remover Foto</button>
-                </div>
-              )}
-
-              {/* O NOVO INTERRUPTOR VEGANO */}
-              <label className={`flex items-center gap-3 px-5 py-2.5 rounded-xl cursor-pointer transition-all border text-sm font-bold shadow-md ${
-                isVegano 
-                  ? "bg-green-500/10 border-green-500/50 text-green-400" 
-                  : "bg-zinc-800/50 border-zinc-700/50 text-zinc-500 hover:bg-zinc-800"
-              }`}>
-                <input 
-                  type="checkbox" 
-                  checked={isVegano} 
-                  onChange={(e) => {
-                    setIsVegano(e.target.checked);
-                    if(status !== "ocioso") setStatus("ocioso"); // Reseta o status se ele mudar de ideia
-                  }} 
-                  className="hidden" 
-                />
-                <span className="text-lg grayscale-0">🌱</span>
-                <span>Modo Vegano</span>
-                {/* Bolinha que simula um Switch de iPhone */}
-                <div className={`w-8 h-4 rounded-full flex items-center p-0.5 transition-colors ${isVegano ? "bg-green-500" : "bg-zinc-600"}`}>
-                  <div className={`w-3 h-3 rounded-full bg-white transition-transform ${isVegano ? "translate-x-4" : "translate-x-0"}`}></div>
-                </div>
+        <div className="w-full bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-2 shadow-lg flex flex-col animate-fade-in">
+          <textarea
+            value={inputTexto}
+            onChange={(e) => {
+              setInputTexto(e.target.value);
+              if(status !== "ocioso") setStatus("ocioso");
+            }}
+            placeholder={metodoAtual === "viralizar" ? "Qual tema do vídeo?" : "O que tem na geladeira hoje?"}
+            className="w-full bg-transparent text-zinc-100 placeholder:text-zinc-600 focus:outline-none resize-none min-h-[90px] p-4 text-lg"
+          />
+          
+          <div className="px-4 pb-4 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-800/50 pt-4 mt-2">
+            {!imagem ? (
+              <label className="flex items-center gap-3 w-max bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-5 py-2.5 rounded-xl cursor-pointer transition-colors text-sm font-bold shadow-md">
+                <span className="text-lg">📸</span>
+                <span className="hidden sm:inline">Anexar Foto da Geladeira</span>
+                <span className="sm:hidden">Foto</span>
+                <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
               </label>
-
-            </div>
-            
-            {status === "ocioso" && (
-              <button
-                onClick={iniciarGeracao}
-                className={`w-full text-white font-bold text-xl py-4 rounded-2xl transition-all shadow-lg mx-auto mb-2 w-[96%] ${
-                  metodoAtual === "viralizar" ? "bg-purple-600 shadow-purple-600/20" : "bg-orange-600 shadow-orange-600/20"
-                }`}
-              >
-                {metodoAtual === "viralizar" ? "Gerar Roteiro Viral" : "Cozinhar com IA"}
-              </button>
+            ) : (
+              <div className="flex items-center gap-4 bg-zinc-950 p-2 rounded-xl w-max border border-zinc-700 shadow-inner">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imagem} alt="Preview" className="w-14 h-14 rounded-lg object-cover" />
+                <button onClick={() => setImagem(null)} className="text-red-400 text-sm font-bold pr-3">Remover Foto</button>
+              </div>
             )}
-          </div>
-        )}
 
-        {status === "gerando" && metodoAtual !== "top30" && (
+            <label className={`flex items-center gap-3 px-5 py-2.5 rounded-xl cursor-pointer transition-all border text-sm font-bold shadow-md ${
+              isVegano ? "bg-green-500/10 border-green-500/50 text-green-400" : "bg-zinc-800/50 border-zinc-700/50 text-zinc-500 hover:bg-zinc-800"
+            }`}>
+              <input type="checkbox" checked={isVegano} onChange={(e) => { setIsVegano(e.target.checked); if(status !== "ocioso") setStatus("ocioso"); }} className="hidden" />
+              <span className="text-lg grayscale-0">🌱</span>
+              <span>Modo Vegano</span>
+              <div className={`w-8 h-4 rounded-full flex items-center p-0.5 transition-colors ${isVegano ? "bg-green-500" : "bg-zinc-600"}`}>
+                <div className={`w-3 h-3 rounded-full bg-white transition-transform ${isVegano ? "translate-x-4" : "translate-x-0"}`}></div>
+              </div>
+            </label>
+          </div>
+          
+          {status === "ocioso" && (
+            <button
+              onClick={iniciarGeracao}
+              className={`w-full text-white font-bold text-xl py-4 rounded-2xl transition-all shadow-lg mx-auto mb-2 w-[96%] ${
+                metodoAtual === "viralizar" ? "bg-purple-600 shadow-purple-600/20" : "bg-orange-600 shadow-orange-600/20"
+              }`}
+            >
+              {metodoAtual === "viralizar" ? "Gerar Roteiro Viral" : "Cozinhar com IA"}
+            </button>
+          )}
+        </div>
+
+        {status === "gerando" && (
           <div className="w-full p-16 flex flex-col items-center justify-center gap-6 text-zinc-500 animate-pulse">
             <span className="text-5xl">{isVegano ? "🌱" : "👨‍🍳"}</span>
             <p className="font-medium text-lg">Analisando e gerando a receita perfeita...</p>
           </div>
         )}
 
-        {metodoAtual === "top30" && (
-          <div className="w-full animate-fade-in space-y-12">
+        {status === "ocioso" && (
+          <div className="w-full animate-fade-in mt-8 space-y-12">
             <div className="text-center space-y-3 mb-8">
-              <h2 className="text-3xl md:text-4xl font-black text-white">Top 30 Receitas</h2>
-              <p className="text-zinc-400">Sem ideias? Escolha entre as favoritas da comunidade.</p>
+              <h2 className="text-2xl md:text-3xl font-black text-white">Sem ideias? Veja o Top 30</h2>
+              <p className="text-zinc-400">As receitas mais buscadas pela nossa comunidade.</p>
             </div>
             {topReceitas.map((categoria, idx) => (
               <div key={idx} className="space-y-6">
-                <h3 className={`text-2xl font-black ${categoria.cat.includes("Vegetarianos") ? "text-green-500" : "text-zinc-200"}`}>
+                <h3 className={`text-xl font-black ${categoria.cat.includes("Vegetarianos") ? "text-green-500" : "text-zinc-200"}`}>
                   {categoria.cat}
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {categoria.pratos.map((prato, pratoIdx) => (
-                    <div key={pratoIdx} className="bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-colors group">
+                    // ADICIONADO O ONCLICK AQUI!
+                    <div 
+                      key={pratoIdx} 
+                      onClick={() => selecionarPratoTop30(prato, categoria.cat)}
+                      className="bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 hover:bg-zinc-800/50 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all group"
+                    >
                       <span className="text-sm md:text-base font-bold text-zinc-300 group-hover:text-orange-400 transition-colors">{prato}</span>
                     </div>
                   ))}
@@ -240,14 +243,9 @@ export default function Home() {
           </div>
         )}
 
-        {status === "pronto" && cacheResultados[metodoAtual] && metodoAtual !== "top30" && (
+        {status === "pronto" && cacheResultados[metodoAtual] && (
           <div className="w-full animate-fade-in flex flex-col gap-8 mt-2">
             
-            <div className="w-full h-24 sm:h-[250px] bg-zinc-900/30 border border-zinc-800/50 border-dashed rounded-3xl flex items-center justify-center text-zinc-600">
-              <span>📢 Anúncio Premium</span>
-            </div>
-
-            {/* SE DEVOLVER ERRO COM A NOVA MENSAGEM EDUCADA */}
             {cacheResultados[metodoAtual].tipo === "json_receita" && cacheResultados[metodoAtual].dados?.erro ? (
                <div className="w-full bg-red-500/10 border border-red-500/30 rounded-3xl p-8 text-center space-y-4">
                  <span className="text-4xl">🛑</span>
@@ -257,7 +255,6 @@ export default function Home() {
                </div>
             ) : cacheResultados[metodoAtual].tipo === "json_receita" && cacheResultados[metodoAtual].dados && (
               <div className="relative overflow-hidden bg-zinc-900 border border-orange-500/20 rounded-3xl p-6 md:p-10 shadow-2xl">
-                {/* Linha colorida do topo muda para verde se a receita for vegana */}
                 <div className={`absolute top-0 left-0 w-full h-2 ${isVegano ? "bg-gradient-to-r from-green-600 to-emerald-400" : "bg-gradient-to-r from-orange-600 to-yellow-500"}`}></div>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-zinc-800/60 pb-6">
                   <h2 className="text-2xl md:text-4xl font-black text-white">
@@ -291,35 +288,29 @@ export default function Home() {
                 </div>
               </div>
             )}
-
-            {cacheResultados[metodoAtual].tipo === "viral" && cacheResultados[metodoAtual].dados && (
-                <div className="space-y-8">
-                  {cacheResultados[metodoAtual].dados.map((receita: any, index: number) => (
-                    <div key={index} className="relative overflow-hidden bg-zinc-900 border border-purple-500/20 rounded-3xl p-6 shadow-2xl">
-                      <div className="absolute top-0 left-0 w-2 h-full bg-purple-500"></div>
-                      <h3 className="text-2xl font-black text-white mb-6 pr-4">{receita.titulo}</h3>
-                      <div className="bg-zinc-950 p-5 rounded-2xl border border-zinc-800 mb-6">
-                        <h4 className="text-xs font-black text-zinc-500 uppercase">🎣 Hook</h4>
-                        <p className="text-orange-400 font-bold italic mt-2">"{receita.hook}"</p>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <div className="bg-zinc-950/50 p-5 rounded-2xl border border-zinc-800/50">
-                           <h4 className="text-xs font-black text-purple-400 uppercase mb-3">🛒 Ingredientes</h4>
-                           <ul className="list-disc list-inside text-zinc-300 space-y-2">{receita.ingredientes?.map((ing: string, i: number) => <li key={i}>{ing}</li>)}</ul>
-                         </div>
-                         <div className="bg-zinc-950/50 p-5 rounded-2xl border border-zinc-800/50">
-                           <h4 className="text-xs font-black text-zinc-500 uppercase mb-3">📝 Legenda do Post</h4>
-                           <p className="text-zinc-300 text-sm whitespace-pre-wrap">{receita.legenda}</p>
-                           <p className="text-purple-400 text-sm mt-3 font-medium">{receita.hashtags?.join(" ")}</p>
-                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-            )}
+            
           </div>
         )}
+
       </main>
+
+      {/* TEXTO DE SEO PARA O GOOGLE ADSENSE (Sempre visível no final da página) */}
+      <section className="w-full max-w-5xl mx-auto px-4 py-16 border-t border-zinc-900 mt-12 animate-fade-in">
+        <div className="prose prose-invert max-w-none text-zinc-400">
+          <h2 className="text-2xl font-bold text-zinc-200 mb-4">Como funciona a Inteligência Artificial do FazRango?</h2>
+          <p className="mb-4">
+            O FazRango é a sua assistente culinária inteligente projetada para acabar com o desperdício de alimentos e facilitar o seu dia a dia na cozinha. Nossa plataforma utiliza modelos avançados de Inteligência Artificial para analisar os ingredientes que você já tem na sua geladeira ou despensa e gerar receitas práticas, saudáveis e deliciosas em questão de segundos.
+          </p>
+          <h3 className="text-xl font-bold text-zinc-200 mt-6 mb-3">Receitas para Airfryer, Micro-ondas e muito mais</h3>
+          <p className="mb-4">
+            Seja você um cozinheiro iniciante ou experiente, nossa ferramenta se adapta ao seu método de preparo favorito. Você pode solicitar receitas exclusivas para Airfryer (fritadeira elétrica), métodos tradicionais de fogão, receitas rápidas de micro-ondas ou até mesmo pratos frios que não exigem cozimento. Além disso, contamos com um filtro exclusivo para alimentação vegana e vegetariana, garantindo opções para todos os estilos de vida.
+          </p>
+          <h3 className="text-xl font-bold text-zinc-200 mt-6 mb-3">Criação de Conteúdo Viral para TikTok e Reels</h3>
+          <p className="mb-4">
+            Além da gastronomia do dia a dia, o FazRango possui uma ferramenta dedicada a criadores de conteúdo focados em culinária. Ao usar a aba de "Roteiro Viral", nossa IA estrutura um roteiro completo para redes sociais, incluindo o "Hook" (gancho dos 3 primeiros segundos), a lista de ingredientes, a legenda otimizada com SEO e as melhores hashtags para o Instagram Reels, TikTok e YouTube Shorts.
+          </p>
+        </div>
+      </section>
 
       <footer className="w-full border-t border-zinc-900 bg-zinc-950/80 backdrop-blur-md py-8 mt-auto z-40">
         <div className="max-w-5xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
